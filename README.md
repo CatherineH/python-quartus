@@ -8,7 +8,13 @@ This project aims to allow interaction with the quartus libraries via python.
 ### Windows
 
 Download and install [Quartus Prime](https://www.altera.com/products/design-software/fpga-design/quartus-prime/overview.html). Add 
-*C:\altera_lite\15.1\quartus\bin64* to the system PATH
+*C:\altera_lite\15.1\quartus\bin64* to the system %PATH%.
+
+Then clone this repo and run the command:
+
+```
+python setup.py install
+```
 
 #### Linux
 
