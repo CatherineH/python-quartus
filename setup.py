@@ -1,10 +1,17 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
-
+from subprocess import call
 INSTALL_REQUIRES = []
 
+
 def main():
+    try:
+        call(["quartus_stp", "-v"])
+    except Exception as error_msg:
+        print("Could not execute quartus_stp. Have you installed Quartus "
+              "Prime and added the executables folder to %PATH%?")
+        return
     setup(
         name="quartus",
         version="0.1",
