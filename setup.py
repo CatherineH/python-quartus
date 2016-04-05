@@ -20,7 +20,8 @@ def main():
         author_email="milankie@gmail.com",
         packages=find_packages(),
         description="A python replacement for the Tcl interface to quartus",
-        install_requires=INSTALL_REQUIRES
+        install_requires=INSTALL_REQUIRES,
+        zip_safe=True
     )
 
 if __name__ == "__main__":
