@@ -1,14 +1,19 @@
 import threading
-import subprocess
+from time import sleep
+from subprocess import Popen, PIPE
 
 
-class StpThread(threading.Thread):
+class StpThread(object):
     def __init__(self):
-        self.stdout = None
-        self.stderr = None
-        threading.Thread.__init__(self)
+        self.p = None
 
     def run(self):
-        self.p = subprocess.Popen(['quartus_stp', '-s'])\
-            #                stdout=subprocess.PIPE,
-            #                 stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.p = Popen(['quartus_stp', '-s'], stdin=PIPE, stdout=PIPE)
+        found_number = 0
+        while found_number < 3:
+            output = self.p.stdout.readline()
+            self.p.stdin.write('\n')
+            if output.find('Info: *******') >= 0:
+                found_number += 1
+            sleep(0.1)
+

@@ -3,20 +3,28 @@ from multiprocessing import Process
 from quartus.stp_thread import StpThread
 
 
-def get_hardware():
+def get_hardware(stp_thread=None):
     """
     Gets a list of Hardware objects
     tcl command: get_hardware_names
     :return: list of Hardware
     """
-    output, error = Popen(["quartus_stp", "--tcl_eval", "get_hardware_names"],
-                         stdout=PIPE, stderr=PIPE).communicate()
+    if stp_thread is None:
+        stp_thread = StpThread()
+    if stp_thread.p is None:
+        stp_thread.run()
+    stp_thread.p.stdin.write('get_hardware_names\n')
+
     _hardware = []
+    output = stp_thread.p.stdin.read()
+    print(output)
+    """
     for item in output.split("\n"):
         item = item.strip()
         if len(item) > 0:
             _hardware.append(Hardware(name=item))
     return _hardware
+    """
 
 
 class Device(object):

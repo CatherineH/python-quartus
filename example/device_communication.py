@@ -4,6 +4,7 @@ test_device = None
 
 # Find the USB Blaster
 # Setup connection
+
 for _hardware in get_hardware():
     if _hardware.name.find("USB-Blaster") >= 0:
         usbblaster = _hardware
