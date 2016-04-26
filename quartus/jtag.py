@@ -11,13 +11,13 @@ def get_hardware(stp_thread=None):
     """
     if stp_thread is None:
         stp_thread = StpThread()
-    if stp_thread.p is None:
+    if stp_thread.process is None:
         stp_thread.run()
-    stp_thread.p.stdin.write('get_hardware_names\n')
+    stp_thread.process.stdin.write('get_hardware_names\n')
 
     _hardware = []
-    output = stp_thread.p.stdin.read()
-    print(output)
+    output = stp_thread.process.stdin.read()
+    #print(output)
     """
     for item in output.split("\n"):
         item = item.strip()
