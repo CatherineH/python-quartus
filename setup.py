@@ -5,7 +5,7 @@ from os.path import join
 from setuptools import setup, find_packages
 from subprocess import call
 
-from quartus import ALTERA_PATH
+from quartus import Setup
 
 INSTALL_REQUIRES = []
 
@@ -13,7 +13,7 @@ py_vers_tag = '-%s.%s' % version_info[:2]
 
 def main():
     try:
-        call([join(ALTERA_PATH, "quartus_stp"), "-v"])
+        call([join(Setup().altera_path, "quartus_stp"), "-v"])
     except Exception as error_msg:
         print("Could not execute quartus_stp for reason: "+str(error_msg)+". "
               "Have you installed Quartus Prime?")

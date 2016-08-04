@@ -7,22 +7,33 @@ from sys import platform, argv
 from optparse import OptionParser
 
 
-# makefile to compile, convert, and upload an altera FPGA image to a jtag
-# device memory.
-if platform == "linux" or platform == "linux2":
-    ALTERA_PATH = expanduser(
-        "~/altera_lite/15.1/quartus/bin")
-    RUN_SHELL = False
-    TMP_FOLDER = '/tmp'
-else:
-    ALTERA_PATH = "C:\\altera_lite\\15.1\quartus\\bin64"
-    # windows requires running as shell
-    RUN_SHELL = True
-    TMP_FOLDER = join(getenv('USERPROFILE'), '\AppData\Local\Temp')
+class Setup(object):
+    @property
+    def altera_path(self):
+        # makefile to compile, convert, and upload an altera FPGA image to a jtag
+        # device memory.
+        if platform == "linux" or platform == "linux2":
+            return expanduser("~/altera_lite/15.1/quartus/bin")
+        else:
+            return "C:\\altera_lite\\15.1\quartus\\bin64"
+    @property
+    def run_shell(self):
+        if platform == "linux" or platform == "linux2":
+            return False
+        else:
+            # windows requires running as shell
+            return True
 
+    @property
+    def tmp_folder(self):
+        if platform == "linux" or platform == "linux2":
+            return '/tmp'
+        else:
+            return join(getenv('USERPROFILE'), 'AppData\Local\Temp')
 
 def conversion_file(output_jic_filename, sof_filename, eeprom='EPCS64',
                       flash_device='EP4CE22'):
+    setup = Setup()
     output = '<?xml version="1.0" encoding="US-ASCII" standalone="yes"?>\n' \
              '<cof>\n' \
              '  <eprom_name>'+eeprom+'</eprom_name>\n' \
@@ -57,16 +68,20 @@ def conversion_file(output_jic_filename, sof_filename, eeprom='EPCS64',
              '		<bitslice_pre_padding>1</bitslice_pre_padding>\n' \
              '	</advanced_options>\n' \
              '</cof>\n'
-    filename = join(TMP_FOLDER, 'conversion_setup.cof')
+    filename = join(setup.tmp_folder, 'conversion_setup.cof')
     if isfile(filename):
         remove(filename)
-    _file = open(filename, 'w+')
-    _file.write(output)
-    _file.close()
+    try:
+        _file = open(filename, 'w+')
+        _file.write(output)
+        _file.close()
+    except IOError as e:
+        print("cannot identify: |", getenv('USERPROFILE'), "|", setup.tmp_folder)
     return filename
 
 
 def target_file(db_foldername, eeprom='EPCS64', flash_device='EP4CE22'):
+    setup = Setup()
     output = 'JedecChain;\n' \
              '	FileRevision(JESD32A);\n' \
              '	DefaultMfr(6E);\n' \
@@ -80,7 +95,7 @@ def target_file(db_foldername, eeprom='EPCS64', flash_device='EP4CE22'):
              'AlteraBegin;\n' \
              '	ChainType(JTAG);\n' \
              'AlteraEnd;\n'
-    filename = join(TMP_FOLDER, 'target_memory.cdf')
+    filename = join(setup.tmp_folder, 'target_memory.cdf')
     if isfile(filename):
         remove(filename)
     _file = open(filename, 'w+')
@@ -104,21 +119,24 @@ def check_for_errors(result, operation="upload"):
 
 
 def format_assembler_step(project_folder, step='quartus_map'):
+    setup = Setup()
     project_name = basename(project_folder)
-    return [join(ALTERA_PATH, step), '--read_settings_files=on',
+    return [join(setup.altera_path, step), '--read_settings_files=on',
             '--write_settings_files=off', join(project_folder, project_name),
             '-c', project_name]
 
 
 def run_assembler_step(project_folder, step='quartus_map'):
+    setup = Setup()
     parts = format_assembler_step(project_folder, step)
     print(" ".join(parts))
-    proc = Popen(parts, stdout=PIPE, stderr=PIPE, shell=RUN_SHELL)
+    proc = Popen(parts, stdout=PIPE, stderr=PIPE, shell=setup.run_shell)
     result, stderr = proc.communicate()
     check_for_errors(result, step)
 
 
 def run_conversion(project_folder, eeprom, flash_device):
+    setup = Setup()
     while True:
         project_name = basename(project_folder)
         _output_jic = join(project_folder, 'db', 'output_file.jic')
@@ -128,9 +146,9 @@ def run_conversion(project_folder, eeprom, flash_device):
                                  sof_filename=_output_sof, eeprom=eeprom,
                                  flash_device=flash_device)
 
-        parts = [join(ALTERA_PATH, 'quartus_cpf'), '-c', cof_fn]
+        parts = [join(setup.altera_path, 'quartus_cpf'), '-c', cof_fn]
         try:
-            result = check_output(parts, shell=RUN_SHELL)
+            result = check_output(parts, shell=setup.run_shell)
         except CalledProcessError as e:
             result = 'error'
             print("error message: ", e)
@@ -148,6 +166,7 @@ def run_conversion(project_folder, eeprom, flash_device):
 
 
 def run_upload(project_folder):
+    setup = Setup()
     while True:
         project_name = basename(project_folder)
         _db_foldername = join(project_folder, 'db')+"/"
@@ -155,9 +174,9 @@ def run_upload(project_folder):
                                    eeprom='EPCS64',
                                    flash_device='EP4CE22')
         # this assumes that the usb jtag chain is device 1
-        parts = [join(ALTERA_PATH, 'quartus_pgm'), '-c', '1', cdf_filename]
+        parts = [join(setup.altera_path, 'quartus_pgm'), '-c', '1', cdf_filename]
         try:
-            result = check_output(parts, shell=RUN_SHELL)
+            result = check_output(parts, shell=setup.run_shell)
         except CalledProcessError as e:
             # if the upload fails more than once, delete the jic file and try again
             result = "error"
@@ -172,8 +191,9 @@ def run_upload(project_folder):
 
 
 def check_jtag():
-    parts = [join(ALTERA_PATH, 'quartus_pgm'), '-l']
-    result = check_output(parts, stderr=STDOUT, shell=RUN_SHELL)
+    setup = Setup()
+    parts = [join(setup.altera_path, 'quartus_pgm'), '-l']
+    result = check_output(parts, stderr=STDOUT, shell=setup.run_shell)
     if str(result).find("No JTAG hardware available") >= 0:
         print("Plug in jtag!")
         exit()
@@ -216,7 +236,7 @@ def compile():
 
     # next, convert the sof to a jic
     # generate the sof file
-    run_conversion(project,options.eeprom, options.flash_device)
+    run_conversion(project, options.eeprom_name, options.flash_name)
     # finally, upload the jic
     run_upload(project)
     # remember to reset the device!
