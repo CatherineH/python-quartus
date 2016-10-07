@@ -2,14 +2,20 @@
 
 from setuptools import setup, find_packages
 from subprocess import call
+import os
+
+print os.environ["PATH"]
+
 INSTALL_REQUIRES = []
 
 
 def main():
     try:
-        call(["quartus_stp", "-v"])
+        call(["quartus_stp", "-v"], shell=True)
     except Exception as error_msg:
-        print("Could not execute quartus_stp. Have you installed Quartus "
+        print("Could not execute quartus_stp for reason: " + str(error_msg) +
+              ". "
+              "Have you installed Quartus "
               "Prime and added the executables folder to %PATH%?")
         return
     setup(
