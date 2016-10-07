@@ -7,9 +7,11 @@ from subprocess import call
 
 from quartus import Setup
 
+
 INSTALL_REQUIRES = []
 
 py_vers_tag = '-%s.%s' % version_info[:2]
+
 
 def main():
     try:
@@ -17,13 +19,14 @@ def main():
     except Exception as error_msg:
         print("Could not execute quartus_stp for reason: "+str(error_msg)+". "
               "Have you installed Quartus Prime?")
+
         return
     setup(
         name="quartus",
         version="0.1",
         url="https://github.com/CatherineH/python-quartus",
         author="Catherine Holloway",
-        entry_points = {
+        entry_points={
         'console_scripts': [
             'pyquartus = quartus:compile',
             'pyquartus%s = quartus:compile' % py_vers_tag,

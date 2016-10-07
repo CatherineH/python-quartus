@@ -1,8 +1,35 @@
 # generate the new files needed by quartus for compilation
-from os import getenv
-from os.path import expanduser, join
+from fnmatch import fnmatch
+from os import getenv, remove, listdir
+from os.path import expanduser, join, isfile, basename, dirname
 from sys import platform
 
+# device prefixes are in quartus/common/tcl/internal/nativelink/qeda_synplify.dat
+'''
+ALTERA_DEVICE_PREFIXES = {'5M':	'MAX V', 'EP1AGX': 'Arria GX',
+                          'EP2AGX': 'Arria II GX (with transceivers)
+EP1C	Cyclone
+EP1M	Mercury
+EP1S	Stratix
+EP1SGX	Stratix GX (with transceivers)
+EP20KxxxC (1)	APEX 20KC
+EP2A	APEX II
+EP2C	Cyclone II
+EP2S	Stratix II
+EP2SGX	Stratix II GX (with transceivers)
+EP3C	Cyclone III
+EP3SL	Stratix III L (logic enhanced)
+EP3SE	Stratix III E (DSP/memory enhanced)
+EP4CE	Cyclone IV (enhanced)
+EP4CGX	Cyclone IV GX (with transceivers)
+EP4SE (2)	Stratix IV E (enhanced)
+EP4SGX (2)	Stratix IV GX (with transceivers)
+EP4S40/100	Stratix IV GT (with transceivers)
+EPM	MAX II
+MAX IIG (lower power)
+MAX IIZ (zero power)
+EPXA	Excalibur}
+'''
 
 class Setup(object):
     """
@@ -30,6 +57,45 @@ class Setup(object):
             return '/tmp'
         else:
             return join(getenv('USERPROFILE'), 'AppData\Local\Temp')
+
+    #@property
+    #def devices
+
+
+def settings_file(output_qsf_filename, device='EP4CE22F17C6'):
+    """
+    Generates a settings file. Assumes that the project name is the basename of
+     output_qsf_filename.
+
+    Does the output settings file must be in the same directory as the project?
+
+    :param str output_qsf_filename: the output filename. At the moment,
+     it must be in the same folder as the project
+    :param str device: the altera device part number
+    """
+    project_dir = dirname(output_qsf_filename)
+    FILETYPES = [('v', 'VERILOG'), ('tcl', 'SOURCE_TCL_SCRIPT'),
+                 ('bdf', 'BDF'), ('bsf', 'BSF')]
+    def format_output(values):
+        output = ''
+        for item in values:
+            output += 'set_global_assignment -name '+item[0]+' '+item[1]+'\n'
+        return output
+    _names = []
+    top_level_entry = basename(output_qsf_filename).replace(".qsf", "")
+    # TODO: figure this out from the device name
+    _names.append(('FAMILY','"Cyclone IV E"'))
+    _names.append(('DEVICE', device))
+    _names.append(('TOP_LEVEL_ENTITY', top_level_entry))
+    # add any found verilog and tcl files
+    for file in listdir(project_dir):
+        for FILETYPE in FILETYPES:
+            if fnmatch(file, '*.'+FILETYPE[0]):
+                _names.append((FILETYPE[1]+'_FILE', join(project_dir, file)))
+
+    _file = open(output_qsf_filename, 'w+')
+    _file.write(format_output(_names))
+    _file.close()
 
 
 def conversion_file(output_jic_filename, sof_filename, eeprom='EPCS64',

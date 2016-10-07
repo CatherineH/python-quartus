@@ -1,80 +1,98 @@
 from subprocess import check_output, CalledProcessError, STDOUT, Popen, PIPE
-from os.path import isfile, join, expanduser, basename
+from os.path import isfile, join, expanduser, basename, isdir
 from sys import platform
 from optparse import OptionParser
 
-from quartus import Setup, conversion_file, target_file
+from os import rmdir
+
+from shutil import copy, copytree, rmtree
+
+from quartus import Setup, conversion_file, target_file, settings_file
 
 
 def check_for_errors(result, operation="upload"):
     result = str(result)
     if result.find("0 errors") < 0:
         print(operation+" error detected")
-        lines = result.split("\\n")
+        lines = result.split("\n")
+        #print(len(lines))
+
         for line in lines:
-            if line.find("rror") > 0:
-                print(line)
+            if line.find("Error (") == 0:
+                print('\033[1;31m'+line+'\033[0m')
+            elif line.find("Warning") == 0:
+                print('\033[1;33m'+line+'\033[0m')
         return False
     else:
         print("no error detected in "+operation)
         return True
 
 
-def format_assembler_step(project_folder, step='quartus_map'):
+def format_assembler_step(options, step='quartus_map'):
     setup = Setup()
-    project_name = basename(project_folder)
-    return [join(setup.altera_path, step), '--read_settings_files=on',
-            '--write_settings_files=off', join(project_folder, project_name),
-            '-c', project_name]
+    project_name = basename(options.project)
+    parts = [join(setup.altera_path, step), '--read_settings_files=on',
+            '--write_settings_files=off']
+    if options.parallel > 1:
+        parts.append('--parallel='+str(options.parallel))
+    parts.append(join(options.project, project_name))
+    return parts
 
 
-def run_assembler_step(project_folder, step='quartus_map'):
+def run_assembler_step(options, step='quartus_map'):
     setup = Setup()
-    parts = format_assembler_step(project_folder, step)
+    parts = format_assembler_step(options, step)
     print(" ".join(parts))
     proc = Popen(parts, stdout=PIPE, stderr=PIPE, shell=setup.run_shell)
     result, stderr = proc.communicate()
-    check_for_errors(result, step)
+    return check_for_errors(result, step)
 
 
-def run_conversion(project_folder, eeprom, flash_device):
+def run_conversion(options):
     setup = Setup()
-    while True:
-        project_name = basename(project_folder)
-        _output_jic = join(project_folder, 'db', 'output_file.jic')
-        _output_sof = join(project_folder, 'output_files',
-                           project_name+'.sof')
-        cof_fn = conversion_file(output_jic_filename=_output_jic,
-                                 sof_filename=_output_sof, eeprom=eeprom,
-                                 flash_device=flash_device)
+    #while True:
+    project_name = basename(options.project)
+    _output_jic = join(options.project, 'db', 'output_file.jic')
+    _output_sof = join(options.project, project_name+'.sof')
+    cof_fn = conversion_file(output_jic_filename=_output_jic,
+                             sof_filename=_output_sof,
+                             eeprom=options.eeprom_name,
+                             flash_device=options.flash_name)
 
-        parts = [join(setup.altera_path, 'quartus_cpf'), '-c', cof_fn]
-        try:
-            result = check_output(parts, shell=setup.run_shell)
-        except CalledProcessError as e:
-            result = 'error'
-            print("error message: ", e)
-            print("Ran into problem on command:")
+    parts = [join(setup.altera_path, 'quartus_cpf'), '-c', cof_fn]
+    proc = Popen(parts, stdout=PIPE, stderr=PIPE, shell=setup.run_shell)
+    result, stderr = proc.communicate()
+    '''
+    try:
+        result = check_output(parts, shell=setup.run_shell)
+    except CalledProcessError as e:
+        result = 'error'
+        print("error message: ", e)
+        print("Ran into problem on command:")
+        print(" ".join(parts))
+    converted = check_for_errors(result, "convert")
+
+    # verify that the jic was actually created
+    if converted:
+        if not isfile(_output_jic):
+            print("output jic not found")
             print(" ".join(parts))
-        converted = check_for_errors(result, "convert")
-        # verify that the jic was actually created
-        if converted:
-            if not isfile(_output_jic):
-                print("output jic not found")
-                print(" ".join(parts))
-                converted = False
-        if converted:
-            break
+            converted = False
+    if converted:
+        break
+     '''
+    return check_for_errors(result, 'convert')
 
 
-def run_upload(project_folder):
+
+def run_upload(options):
     setup = Setup()
     while True:
-        project_name = basename(project_folder)
-        _db_foldername = join(project_folder, 'db')+"/"
+        project_name = basename(options.project)
+        _db_foldername = join(options.project, 'db')+"/"
         cdf_filename = target_file(db_foldername=_db_foldername,
-                                   eeprom='EPCS64',
-                                   flash_device='EP4CE22')
+                                   eeprom=options.eeprom_name,
+                                   flash_device=options.flash_name)
         # this assumes that the usb jtag chain is device 1
         parts = [join(setup.altera_path, 'quartus_pgm'), '-c', '1', cdf_filename]
         try:
@@ -104,24 +122,30 @@ def check_jtag():
 class CompileOption(OptionParser):
     def __init__(self):
         OptionParser.__init__(self)
-        self.add_option("-u", "--upload", action="store", dest="project",
+        self.add_option("-u", "--upload", action="store_true", dest="upload",
                         default=False, metavar='OPTION',
-                        help="")
+                        help="If the tag is present, upload the compiled "
+                             "file over the first JTAG cable found.")
+        self.add_option("-c", "--clear", action="store_true", dest="clear",
+                        default=False, metavar='OPTION',
+                        help="If the tag is present, any existing generated "
+                             "files will be cleared.")
+        self.add_option("--parallel", action="store", dest="parallel",
+                        default=1, metavar='FOLDERNAME',
+                        help="Number of parallel processes. More than 1 "
+                             "requires license.")
         self.add_option("-p", "--project", action="store", dest="project",
                         default=None, metavar='FOLDERNAME',
                         help="The foldername of the project. By default, "
                              "the project entrypoint verilog file is assumed "
                              "to be the same as the foldername.")
-
-        self.add_option("-f", "--flash", action="store", dest="flash_name",
-                        default="EP4CE22", metavar='CHIP',
-                        help="The name of the flash chip where the image will "
-                             "be loaded.")
-
+        self.add_option("-d", "--device", action="store", dest="device_name",
+                        default="EP4CE22F17C6", metavar='CHIP',
+                        help="The name of the target device.")
         self.add_option("-e", "--eeprom", action="store", dest="eeprom_name",
                         default="EPCS64", metavar='CHIP',
-                        help="The name of the eeprom chip where the image will "
-                             "be loaded.")
+                        help="The name of the eeprom chip where the image "
+                             "will be loaded.")
 
 
 def compile():
@@ -129,21 +153,41 @@ def compile():
     (options, args) = parser.parse_args()
     if options.project is None:
         raise NameError("Please specify a project directory with --project")
-    project = expanduser(options.project)
-    # make sure a jtag chain is plugged in
-    check_jtag()
+    options.project = expanduser(options.project)
+    # create a folder in the temporary directory, and copy all of the files
+    # in the supplied directory to this directory
+    setup = Setup()
+    tmp_project_folder = join(setup.tmp_folder, basename(options.project))
+    # remove the existing files
+    if options.clear:
+        if isdir(tmp_project_folder):
+            rmtree(tmp_project_folder)
+    # copy all files in the current folder to the tmp folder
+    copytree(options.project, tmp_project_folder)
+    options.project = tmp_project_folder
+    # flash name is the device name with the pin information removed
+    options.flash_name = options.device_name.split("F")[0]
+    if options.upload:
+        # make sure a jtag chain is plugged in
+        check_jtag()
 
-    run_assembler_step(project, 'quartus_map')
-    run_assembler_step(project, 'quartus_fit')
-    run_assembler_step(project, 'quartus_asm')
+    # check for the settings file
+    _settings_file = join(options.project, basename(options.project)+".qsf")
+    if not isfile(_settings_file):
+        settings_file(_settings_file, device=options.device_name)
 
-    # run_assembler_step('quartus_eda')
+    steps = ['quartus_map', 'quartus_fit', 'quartus_asm', 'quartus_eda']
+    # run through each step, return on detected failure
+    for step in steps:
+        if not run_assembler_step(options, step):
+            return
 
     # next, convert the sof to a jic
     # generate the sof file
-    run_conversion(project, options.eeprom_name, options.flash_name)
-    # finally, upload the jic
-    run_upload(project)
+    run_conversion(options)
+    if options.upload:
+        # finally, upload the jic
+        run_upload(options)
     # remember to reset the device!
 
 if __name__ == "__main__":
