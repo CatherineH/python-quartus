@@ -15,7 +15,6 @@ def check_for_errors(result, operation="upload"):
     if result.find("0 errors") < 0:
         print(operation+" error detected")
         lines = result.split("\n")
-        #print(len(lines))
 
         for line in lines:
             if line.find("Error (") == 0:
@@ -43,8 +42,8 @@ def run_assembler_step(options, step='quartus_map'):
     setup = Setup()
     parts = format_assembler_step(options, step)
     print(" ".join(parts))
-    proc = Popen(parts, stdout=PIPE, stderr=PIPE, shell=setup.run_shell)
-    result, stderr = proc.communicate()
+    procedure = Popen(parts, stdout=PIPE, stderr=PIPE, shell=setup.run_shell)
+    result, _ = procedure.communicate()
     return check_for_errors(result, step)
 
 
@@ -82,7 +81,6 @@ def run_conversion(options):
         break
      '''
     return check_for_errors(result, 'convert')
-
 
 
 def run_upload(options):
@@ -131,7 +129,7 @@ class CompileOption(OptionParser):
                         help="If the tag is present, any existing generated "
                              "files will be cleared.")
         self.add_option("--parallel", action="store", dest="parallel",
-                        default=1, metavar='FOLDERNAME',
+                        default=1, metavar='NUM_PROCESSORS',
                         help="Number of parallel processes. More than 1 "
                              "requires license.")
         self.add_option("-p", "--project", action="store", dest="project",
@@ -148,12 +146,14 @@ class CompileOption(OptionParser):
                              "will be loaded.")
 
 
-def compile():
+def compile_quartus():
     parser = CompileOption()
     (options, args) = parser.parse_args()
     if options.project is None:
         raise NameError("Please specify a project directory with --project")
     options.project = expanduser(options.project)
+    if options.project[-1] == "/":
+        options.project = options.project[:-1]
     # create a folder in the temporary directory, and copy all of the files
     # in the supplied directory to this directory
     setup = Setup()
@@ -161,7 +161,10 @@ def compile():
     # remove the existing files
     if options.clear:
         if isdir(tmp_project_folder):
-            rmtree(tmp_project_folder)
+            try:
+                rmtree(tmp_project_folder)
+            except OSError as e:
+                print("Could not remove folder: ", tmp_project_folder)
     # copy all files in the current folder to the tmp folder
     copytree(options.project, tmp_project_folder)
     options.project = tmp_project_folder
@@ -191,4 +194,4 @@ def compile():
     # remember to reset the device!
 
 if __name__ == "__main__":
-    compile()
+    compile_quartus()
