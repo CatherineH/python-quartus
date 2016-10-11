@@ -28,8 +28,8 @@ def main():
         author="Catherine Holloway",
         entry_points={
         'console_scripts': [
-            'pyquartus = quartus:compile',
-            'pyquartus%s = quartus:compile' % py_vers_tag,
+            'pyquartus = quartus:compile_quartus',
+            'pyquartus%s = quartus:compile_quartus' % py_vers_tag,
             ]},
         author_email="milankie@gmail.com",
         packages=find_packages(),

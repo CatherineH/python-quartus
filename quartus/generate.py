@@ -3,33 +3,8 @@ from fnmatch import fnmatch
 from os import getenv, remove, listdir
 from os.path import expanduser, join, isfile, basename, dirname
 from sys import platform
+from re import match
 
-# device prefixes are in quartus/common/tcl/internal/nativelink/qeda_synplify.dat
-'''
-ALTERA_DEVICE_PREFIXES = {'5M':	'MAX V', 'EP1AGX': 'Arria GX',
-                          'EP2AGX': 'Arria II GX (with transceivers)
-EP1C	Cyclone
-EP1M	Mercury
-EP1S	Stratix
-EP1SGX	Stratix GX (with transceivers)
-EP20KxxxC (1)	APEX 20KC
-EP2A	APEX II
-EP2C	Cyclone II
-EP2S	Stratix II
-EP2SGX	Stratix II GX (with transceivers)
-EP3C	Cyclone III
-EP3SL	Stratix III L (logic enhanced)
-EP3SE	Stratix III E (DSP/memory enhanced)
-EP4CE	Cyclone IV (enhanced)
-EP4CGX	Cyclone IV GX (with transceivers)
-EP4SE (2)	Stratix IV E (enhanced)
-EP4SGX (2)	Stratix IV GX (with transceivers)
-EP4S40/100	Stratix IV GT (with transceivers)
-EPM	MAX II
-MAX IIG (lower power)
-MAX IIZ (zero power)
-EPXA	Excalibur}
-'''
 
 class Setup(object):
     """
@@ -58,8 +33,33 @@ class Setup(object):
         else:
             return join(getenv('USERPROFILE'), 'AppData\Local\Temp')
 
-    #@property
-    #def devices
+    @property
+    def devices(self):
+        filename_synplify = join(dirname(self.altera_path),
+                        "common/tcl/internal/nativelink/qeda_synplify.dat")
+        lines = open(filename_synplify, "r").read(-1).split("\n")
+
+        copied_lines = []
+        for line in lines:
+            if line.find("#") != 0:
+                copied_lines.append(line)
+        return copied_lines
+
+    def lookup_device(self, device):
+        lines = self.devices
+
+        for line in lines:
+            parts = line.split(":")
+            if len(parts) < 2:
+                continue
+            _family = parts[0]
+            _device = parts[1]
+            if _device == "AUTO":
+                continue
+            _match = match(_device, device)
+            if _match is not None:
+                return _family
+        return None
 
 
 def settings_file(output_qsf_filename, device='EP4CE22F17C6'):
@@ -75,7 +75,7 @@ def settings_file(output_qsf_filename, device='EP4CE22F17C6'):
     """
     project_dir = dirname(output_qsf_filename)
     FILETYPES = [('v', 'VERILOG'), ('tcl', 'SOURCE_TCL_SCRIPT'),
-                 ('bdf', 'BDF'), ('bsf', 'BSF')]
+                 ('bdf', 'BDF'), ('bsf', 'BSF'), ('h', 'SOURCE')]
     def format_output(values):
         output = ''
         for item in values:
@@ -83,8 +83,10 @@ def settings_file(output_qsf_filename, device='EP4CE22F17C6'):
         return output
     _names = []
     top_level_entry = basename(output_qsf_filename).replace(".qsf", "")
-    # TODO: figure this out from the device name
-    _names.append(('FAMILY','"Cyclone IV E"'))
+    _setup = Setup()
+    _family = _setup.lookup_device(device)
+    #Cyclone IV E
+    _names.append(('FAMILY','"'+_family+'"'))
     _names.append(('DEVICE', device))
     _names.append(('TOP_LEVEL_ENTITY', top_level_entry))
     # add any found verilog and tcl files

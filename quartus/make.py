@@ -6,13 +6,14 @@ from optparse import OptionParser
 from os import rmdir
 
 from shutil import copy, copytree, rmtree
+from time import sleep
 
 from quartus import Setup, conversion_file, target_file, settings_file
 
 
 def check_for_errors(result, operation="upload"):
     result = str(result)
-    if result.find("0 errors") < 0:
+    if result.find(" 0 errors") < 0:
         print(operation+" error detected")
         lines = result.split("\n")
 
@@ -44,6 +45,7 @@ def run_assembler_step(options, step='quartus_map'):
     print(" ".join(parts))
     procedure = Popen(parts, stdout=PIPE, stderr=PIPE, shell=setup.run_shell)
     result, _ = procedure.communicate()
+
     return check_for_errors(result, step)
 
 
