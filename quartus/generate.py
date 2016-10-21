@@ -12,12 +12,13 @@ class Setup(object):
     """
     @property
     def altera_path(self):
-        # makefile to compile, convert, and upload an altera FPGA image to a jtag
-        # device memory.
+        # makefile to compile, convert, and upload an altera FPGA image to a
+        # jtag device memory.
         if platform == "linux" or platform == "linux2":
             return expanduser("~/altera_lite/15.1/quartus/bin")
         else:
             return "C:\\altera_lite\\15.1\quartus\\bin64"
+
     @property
     def run_shell(self):
         if platform == "linux" or platform == "linux2":
@@ -74,8 +75,10 @@ def settings_file(output_qsf_filename, device='EP4CE22F17C6'):
     :param str device: the altera device part number
     """
     project_dir = dirname(output_qsf_filename)
-    FILETYPES = [('v', 'VERILOG'), ('tcl', 'SOURCE_TCL_SCRIPT'),
+    filetypes = [('v', 'VERILOG'), ('vh', 'VERILOG'),
+                 ('tcl', 'SOURCE_TCL_SCRIPT'),
                  ('bdf', 'BDF'), ('bsf', 'BSF'), ('h', 'SOURCE')]
+    
     def format_output(values):
         output = ''
         for item in values:
@@ -85,15 +88,15 @@ def settings_file(output_qsf_filename, device='EP4CE22F17C6'):
     top_level_entry = basename(output_qsf_filename).replace(".qsf", "")
     _setup = Setup()
     _family = _setup.lookup_device(device)
-    #Cyclone IV E
-    _names.append(('FAMILY','"'+_family+'"'))
+    # Cyclone IV E
+    _names.append(('FAMILY', '"'+_family+'"'))
     _names.append(('DEVICE', device))
     _names.append(('TOP_LEVEL_ENTITY', top_level_entry))
     # add any found verilog and tcl files
-    for file in listdir(project_dir):
-        for FILETYPE in FILETYPES:
-            if fnmatch(file, '*.'+FILETYPE[0]):
-                _names.append((FILETYPE[1]+'_FILE', join(project_dir, file)))
+    for _file in listdir(project_dir):
+        for filetype in filetypes:
+            if fnmatch(_file, '*.'+filetype[0]):
+                _names.append((filetype[1]+'_FILE', join(project_dir, _file)))
 
     _file = open(output_qsf_filename, 'w+')
     _file.write(format_output(_names))
@@ -159,7 +162,8 @@ def conversion_file(output_jic_filename, sof_filename, eeprom='EPCS64',
         _file.write(output)
         _file.close()
     except IOError as e:
-        print("cannot identify: |", getenv('USERPROFILE'), "|", setup.tmp_folder)
+        print("cannot identify: |", getenv('USERPROFILE'), "|",
+              setup.tmp_folder)
     return filename
 
 
