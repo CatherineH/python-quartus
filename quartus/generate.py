@@ -1,6 +1,6 @@
 # generate the new files needed by quartus for compilation
 from fnmatch import fnmatch
-from os import getenv, remove, listdir
+from os import getenv, remove, listdir, walk
 from os.path import expanduser, join, isfile, basename, dirname
 from sys import platform
 from re import match
@@ -10,14 +10,25 @@ class Setup(object):
     """
     Set up path variables for compilation
     """
+    def __init__(self):
+        self._altera_path = None
+
     @property
     def altera_path(self):
         # makefile to compile, convert, and upload an altera FPGA image to a
         # jtag device memory.
-        if platform == "linux" or platform == "linux2":
-            return expanduser("~/altera_lite/15.1/quartus/bin")
-        else:
-            return "C:\\altera_lite\\15.1\quartus\\bin64"
+        if self._altera_path is None:
+            found = False
+            for path, subdirs, files in walk("/"):
+                for x in files:
+                    if x.endswith('quartus_stp') and not path.endswith("linux64"):
+                        self._altera_path = path
+                        found = True
+                    if found:
+                        break
+                if found:
+                    break
+        return self._altera_path
 
     @property
     def run_shell(self):
