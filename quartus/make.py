@@ -2,7 +2,7 @@ from subprocess import check_output, CalledProcessError, STDOUT, Popen, PIPE
 from os.path import isfile, join, expanduser, basename, isdir
 from sys import platform
 from optparse import OptionParser
-
+import logging
 from shutil import copytree, rmtree
 from time import time
 
@@ -68,10 +68,18 @@ def run_conversion(options):
     return check_for_errors(result)
 
 
-def run_upload(options):
+def run_upload(options, log=False):
+    """
+    Generate target file and continuously attempt to upload until it succeeds.
+
+    :param CompileOption options: the compilation options.
+    :param TextIOWrapper log_fh: If present, the number of failures and elapsed time
+    will be recorded.
+    """
     setup = Setup()
+    num_failures = 0
     while True:
-        project_name = basename(options.project)
+        start_upload = time()
         _db_foldername = join(options.project, 'db')+"/"
         cdf_filename = target_file(db_foldername=_db_foldername,
                                    eeprom=options.eeprom_name,
@@ -82,6 +90,11 @@ def run_upload(options):
         try:
             result = check_output(parts, shell=setup.run_shell)
         except CalledProcessError as e:
+            num_failures += 1
+            end_upload = time()
+            if log:
+                logging.warning("Upload failed: "+str(num_failures)+" times, elapsed: " +
+                             str(end_upload-start_upload) + ".\n")
             result = "error"
             print("Ran into problem on command:")
             print(" ".join(parts))
@@ -94,6 +107,9 @@ def run_upload(options):
 
 
 def check_jtag():
+    """
+    Make sure that a jtag cable is plugged in.
+    """
     setup = Setup()
     parts = [join(setup.altera_path, 'quartus_pgm'), '-l']
     result = check_output(parts, stderr=STDOUT, shell=setup.run_shell)
@@ -112,7 +128,10 @@ class CompileOption(OptionParser):
         self.add_option("-c", "--clear", action="store_true", dest="clear",
                         default=False, metavar='OPTION',
                         help="If the tag is present, any existing generated "
-                             "files will be cleared.")
+                             "files will be cleared. bloop")
+        self.add_option("-l", "--log", action="store_true", dest="logging",
+                        default=False, metavar='OPTION',
+                        help="If the tag is present, this build will be logged.")
         self.add_option("-t", "--time", action="store_true", dest="time",
                         default=False, metavar='OPTION',
                         help="If the tag is present, report the elapsed time "
@@ -133,12 +152,17 @@ class CompileOption(OptionParser):
                         default="EPCS64", metavar='CHIP',
                         help="The name of the eeprom chip where the image "
                              "will be loaded.")
+        self.add_option("-v", "--verbose", action="store_true", dest="verbose",
+                        default=False, metavar='OPTION',
+                        help="If the tag is present, verbose output will be printed to "
+                             "the screen.")
 
 
 def compile_quartus():
     parser = CompileOption()
     (options, args) = parser.parse_args()
-    if options.time:
+    start = None
+    if options.time or options.logging:
         start = time()
     if options.project is None:
         raise NameError("Please specify a project directory with --project")
@@ -147,21 +171,34 @@ def compile_quartus():
         options.project = options.project[:-1]
     # create a folder in the temporary directory, and copy all of the files
     # in the supplied directory to this directory
+    if options.verbose:
+        print("Setting up project.")
     setup = Setup()
+    log_fh = None
+    if options.logging:
+        logging.basicConfig(filename=setup.log_file(options.project),
+                            level=logging.DEBUG)
+        logging.info("Started compiling "+str(options.project)+" at: "+str(start)+"\n")
     tmp_project_folder = join(setup.tmp_folder, basename(options.project))
     # remove the existing files
     if options.clear:
+        if options.verbose:
+            print("Clearing previous files.")
         if isdir(tmp_project_folder):
             try:
                 rmtree(tmp_project_folder)
             except OSError as e:
                 print("Could not remove folder: ", tmp_project_folder)
+    if options.verbose:
+        print("Copying source files.")
     # copy all files in the current folder to the tmp folder
     copytree(options.project, tmp_project_folder)
     options.project = tmp_project_folder
     # flash name is the device name with the pin information removed
     options.flash_name = options.device_name.split("F")[0]
     if options.upload:
+        if options.verbose:
+            print("Checking JTAG chain.")
         # make sure a jtag chain is plugged in
         check_jtag()
 
@@ -173,18 +210,26 @@ def compile_quartus():
     steps = ['quartus_map', 'quartus_fit', 'quartus_asm', 'quartus_eda']
     # run through each step, return on detected failure
     for step in steps:
+        if options.verbose:
+            print("Running step: ", step)
         if not run_assembler_step(options, step):
             return
 
     # next, convert the sof to a jic
     # generate the sof file
+    print("Converting output file.")
     run_conversion(options)
     if options.upload:
+        if options.verbose:
+            print("Uploading.")
         # finally, upload the jic
-        run_upload(options)
+        run_upload(options, log=True)
     # remember to reset the device!
-    if options.time:
+    if options.time or options.logging:
         end = time()
+        if options.logging:
+            logging.info("Build completed at: "+str(end)+" duration: "+str(
+                end-start)+"\n")
         line = "Total time elapsed:" + str(end-start)
         print('\033[1;96m'+line+'\033[0m')
 

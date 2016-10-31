@@ -1,4 +1,6 @@
 # generate the new files needed by quartus for compilation
+from os import environ, getcwd
+
 from fnmatch import fnmatch
 from os import getenv, remove, listdir, walk
 from os.path import expanduser, join, isfile, basename, dirname
@@ -17,18 +19,17 @@ class Setup(object):
     def altera_path(self):
         # makefile to compile, convert, and upload an altera FPGA image to a
         # jtag device memory.
-        if self._altera_path is None:
-            found = False
+        if self._altera_path is not None:
+            return self._altera_path
+        else:
+            if "ALTERA_PATH" in environ.keys():
+                self._altera_path = environ["ALTERA_PATH"]
             for path, subdirs, files in walk("/"):
                 for x in files:
-                    if x.endswith('quartus_stp') and not path.endswith("linux64"):
+                    if x.find('quartus_stp') == 0 and not path.endswith("linux64"):
                         self._altera_path = path
-                        found = True
-                    if found:
-                        break
-                if found:
-                    break
-        return self._altera_path
+                        return self._altera_path
+        raise ValueError("Altera not found!")
 
     @property
     def run_shell(self):
@@ -44,6 +45,10 @@ class Setup(object):
             return '/tmp'
         else:
             return join(getenv('USERPROFILE'), 'AppData\Local\Temp')
+
+    def log_file(self, project_name="unknown_project"):
+        _log_file = join(getcwd(), "pyquartus_"+project_name+".log")
+        return _log_file
 
     @property
     def devices(self):
