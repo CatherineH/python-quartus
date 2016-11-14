@@ -3,6 +3,8 @@
 
 This project aims to allow interaction with the quartus libraries via python.
 
+*importlib.util* is used in setup, therefore, this project is currently only compatible with python 3.
+
 ## Installation
 
 Download and install [Quartus Prime](https://www.altera.com/products/design-software/fpga-design/quartus-prime/overview.html).

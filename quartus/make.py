@@ -13,6 +13,8 @@ def check_for_errors(result):
     result = str(result)
     if result.find(" 0 errors") < 0:
         lines = result.split("\n")
+        if len(lines) == 1:
+            lines = lines[0].split("\\n")
 
         for line in lines:
             if line.find("Error (") == 0:
@@ -42,7 +44,9 @@ def run_assembler_step(options, step='quartus_map'):
     parts = format_assembler_step(options, step)
     print(" ".join(parts))
     procedure = Popen(parts, stdout=PIPE, stderr=PIPE, shell=setup.run_shell)
-    result, _ = procedure.communicate()
+    result, error = procedure.communicate()
+    #print("result: ", result)
+    #print("error: ", error)
     _return_values = check_for_errors(result)
     if options.time:
         end = time()
@@ -121,21 +125,23 @@ def check_jtag():
 class CompileOption(OptionParser):
     def __init__(self):
         OptionParser.__init__(self)
-        self.add_option("-u", "--upload", action="store_true", dest="upload",
-                        default=False, metavar='OPTION',
-                        help="If the tag is present, upload the compiled "
-                             "file over the first JTAG cable found.")
         self.add_option("-c", "--clear", action="store_true", dest="clear",
                         default=False, metavar='OPTION',
                         help="If the tag is present, any existing generated "
                              "files will be cleared. bloop")
+        self.add_option("-d", "--device", action="store", dest="device_name",
+                        default="EP4CE22F17C6", metavar='CHIP',
+                        help="The name of the target device.")
+        self.add_option("-e", "--eeprom", action="store", dest="eeprom_name",
+                        default="EPCS64", metavar='CHIP',
+                        help="The name of the eeprom chip where the image "
+                             "will be loaded.")
+        self.add_option("-i", "--include", action="store", dest="include_dirs",
+                        help="A list of folders to include. Deliminate multiple "
+                             "directories by a comma.")
         self.add_option("-l", "--log", action="store_true", dest="logging",
                         default=False, metavar='OPTION',
                         help="If the tag is present, this build will be logged.")
-        self.add_option("-t", "--time", action="store_true", dest="time",
-                        default=False, metavar='OPTION',
-                        help="If the tag is present, report the elapsed time "
-                             "will be measured and reported.")
         self.add_option("--parallel", action="store", dest="parallel",
                         default=1, metavar='NUM_PROCESSORS',
                         help="Number of parallel processes. More than 1 "
@@ -145,13 +151,14 @@ class CompileOption(OptionParser):
                         help="The foldername of the project. By default, "
                              "the project entrypoint verilog file is assumed "
                              "to be the same as the foldername.")
-        self.add_option("-d", "--device", action="store", dest="device_name",
-                        default="EP4CE22F17C6", metavar='CHIP',
-                        help="The name of the target device.")
-        self.add_option("-e", "--eeprom", action="store", dest="eeprom_name",
-                        default="EPCS64", metavar='CHIP',
-                        help="The name of the eeprom chip where the image "
-                             "will be loaded.")
+        self.add_option("-t", "--time", action="store_true", dest="time",
+                        default=False, metavar='OPTION',
+                        help="If the tag is present, report the elapsed time "
+                             "will be measured and reported.")
+        self.add_option("-u", "--upload", action="store_true", dest="upload",
+                        default=False, metavar='OPTION',
+                        help="If the tag is present, upload the compiled "
+                             "file over the first JTAG cable found.")
         self.add_option("-v", "--verbose", action="store_true", dest="verbose",
                         default=False, metavar='OPTION',
                         help="If the tag is present, verbose output will be printed to "
@@ -193,6 +200,10 @@ def compile_quartus():
         print("Copying source files.")
     # copy all files in the current folder to the tmp folder
     copytree(options.project, tmp_project_folder)
+    if options.include_dirs is not None:
+        options.include_dirs = options.include_dirs.split(",")
+        for item in options.include_dirs:
+            copytree(item, join(tmp_project_folder, basename(item)))
     options.project = tmp_project_folder
     # flash name is the device name with the pin information removed
     options.flash_name = options.device_name.split("F")[0]
