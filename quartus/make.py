@@ -1,9 +1,10 @@
+from os import listdir
 from subprocess import check_output, CalledProcessError, STDOUT, Popen, PIPE
 from os.path import isfile, join, expanduser, basename, isdir
 from sys import platform
 from optparse import OptionParser
 import logging
-from shutil import copytree, rmtree
+from shutil import copytree, rmtree, copy
 from time import time
 
 from quartus import Setup, conversion_file, target_file, settings_file
@@ -203,7 +204,9 @@ def compile_quartus():
     if options.include_dirs is not None:
         options.include_dirs = options.include_dirs.split(",")
         for item in options.include_dirs:
-            copytree(item, join(tmp_project_folder, basename(item)))
+            for _filename in listdir(item):
+                copy(join(item, _filename),
+                     join(tmp_project_folder, _filename))
     options.project = tmp_project_folder
     # flash name is the device name with the pin information removed
     options.flash_name = options.device_name.split("F")[0]
