@@ -8,11 +8,6 @@ from setuptools import setup, find_packages, Command
 from shutil import rmtree
 from subprocess import call
 
-import importlib.util
-spec = importlib.util.spec_from_file_location("Setup", "quartus/generate.py")
-foo = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(foo)
-Setup = foo.Setup
 
 
 INSTALL_REQUIRES = []
@@ -40,13 +35,6 @@ class CleanCommand(Command):
 
 
 def main():
-    try:
-        call([join(Setup().altera_path, "quartus_stp"), "-v"])
-    except Exception as error_msg:
-        print("Could not execute quartus_stp for reason: "+str(error_msg)+". "
-              "Have you installed Quartus Prime?")
-
-        return
     setup(
         name="quartus",
         version="0.1",
